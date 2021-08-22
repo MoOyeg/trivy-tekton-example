@@ -1,6 +1,6 @@
-"""
+'''
 Flask Sample Application Module
-"""
+'''
 
 from app import routes
 from flask import Flask
