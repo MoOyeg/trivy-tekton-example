@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: trivy-scan
+spec:
+  description: This task can be used to run unit tests for python.
+  params:
+    - default: "0.19.1"
+      description: "The trivy tag to use for trivy image"
+      name: tag
+      type: string
+    - default: ""
+      description: The additional arguments to be used with unittest
+      name: args
+      type: string
+    - default: .
+      description: The path to the source code
+      name: path
+      type: string
+    - name: script
+      description: The Trivy script to run
+      type: string
+      default: "trivy $@"
+  steps:
+    - image: "docker.io/aquasec/trivy:$(inputs.params.tag)"
+      name: trivy-scan
+      resources: {}
+      script: "$(params.script)"
+      args:
+        - "$(params.args)"
+      workingDir: $(workspaces.source.path)/$(params.path)
+  workspaces:
+    - name: source

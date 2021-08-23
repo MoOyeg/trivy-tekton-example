@@ -1,0 +1,199 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: trivy-sample-pipelines
+  namespace: tekton-pipelines
+spec:
+  workspaces:
+    - name: pipeline-pvc
+      optional: false
+    - name: dockerconfig
+      optional: true
+    - name: src-file
+    - name: dest-file
+  description: Demo Pipeline for Trivy
+  params:
+    - name: image
+      type: string
+      description: Full name of output image to scan (example -- registry.redhat.io/ubi8)
+    - name: url
+      type: string
+      description: Git Repo to Clone
+    - name: trivy-enforce
+      type: string
+      description: Should Trivy Enforce Policy if yes set to --exit-code 0
+    - name: temp-image
+      type: string
+      description: Temporary image storage repo
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+        kind: Task
+      params:
+        - name: url
+          value: $(params.url)
+      workspaces:
+        - name: output
+          workspace: pipeline-pvc
+    - name: lint-code
+      taskRef:
+        name: pylint
+        kind: Task
+      params:
+        - name: path
+          value: /workspace/source/trivy_app_sample.py
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - git-clone
+    - name: temp-docker-registry
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-pvc.yaml -n tekton-pipelines && \
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-registry.yaml -n tekton-pipelines && \
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-svc.yaml  -n tekton-pipelines
+    - name: temp-registry-secret
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret docker-registry regcred \
+            --docker-server=docker-registry.tekton-pipelines.svc.cluster.local:5000 \
+            --docker-username=myuser \
+            --docker-password=mypasswd \
+            --docker-email=test@email.com -n tekton-pipelines && \
+            kubectl create secret generic regcred2 --from-literal="config.json"=$(kubectl get secret regcred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
+      runAfter:
+        - temp-docker-registry
+    - name: mkdir-for-local-oci
+      taskSpec:
+        steps:
+          - name: mkdir
+            image: zshusers/zsh:4.3.15
+            script: mkdir /workspace/source/local
+        workspaces:
+          - name: source
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - lint-code
+    - name: kaniko-build
+      taskRef:
+        name: kaniko
+        kind: Task
+      params:
+        - name: IMAGE
+          value: $(params.temp-image)
+        - name: EXTRA_ARGS
+          value:
+            - --skip-tls-verify
+            - --insecure
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+        - name: dockerconfig
+          workspace: dockerconfig
+      runAfter:
+        - lint-code
+        - temp-registry-secret
+    - name: skopeo-local-copy
+      taskRef:
+        name: custom-skopeo
+        kind: Task
+      params:
+        - name: args
+          value: |
+            copy docker://$(params.temp-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson oci:/workspace/source/local
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+        - name: src-file
+          workspace: src-file
+        - name: dest-file
+          workspace: dest-file
+      runAfter:
+        - kaniko-build
+    # - name: check-local
+    #   taskSpec:
+    #     steps:
+    #       - name: mkdir
+    #         image: zshusers/zsh:4.3.15
+    #         script: ls /workspace/source
+    #     workspaces:
+    #       - name: source
+    #   workspaces:
+    #     - name: source
+    #       workspace: pipeline-pvc
+    #   runAfter:
+    #     - skopeo-local-copy
+    - name: trivy-scan-local-image
+      taskRef:
+        name: trivy-scan
+        kind: Task
+      params:
+        - name: args
+          value: "image $(params.trivy-enforce) --input /workspace/source/local"
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - skopeo-local-copy
+    - name: skopeo-remote-copy
+      taskRef:
+        name: custom-skopeo
+        kind: Task
+      params:
+        - name: args
+          value: |
+            copy docker://$(params.temp-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson docker://$(params.image):latest --dest-authfile /workspace/dest-file/.dockerconfigjson
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+        - name: src-file
+          workspace: src-file
+        - name: dest-file
+          workspace: dest-file
+      runAfter:
+        - trivy-scan-local-image
+    - name: trivy-scan-deployment-code
+      taskRef:
+        name: trivy-scan
+        kind: Task
+      params:
+        - name: args
+          value: "config $(params.trivy-enforce) /workspace/source/deploy"
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - skopeo-remote-copy
+    - name: deploy-application
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl apply -f /workspace/manifest-dir/deploy -n trivy-demo
+      workspaces:
+        - name: manifest-dir
+          workspace: pipeline-pvc
+  finally:
+    - name: cleanup-workspace
+      taskRef:
+        name: kubernetes-actions
+      params:
+        - name: script
+          value: |
+            kubectl delete pod/docker-registry-pod -n tekton-pipelines && \
+            kubectl delete secret/regcred -n tekton-pipelines && \
+            kubectl delete secret/regcred2 -n tekton-pipelines

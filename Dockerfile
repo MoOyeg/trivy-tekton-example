@@ -28,4 +28,5 @@ RUN chmod -R g+rw ./
 USER 1001
 
 #ENTRY
-ENTRYPOINT gunicorn -c $APP_CONFIG $APP_MODULE
+#ENTRYPOINT gunicorn -c $APP_CONFIG $APP_MODULE
+ENTRYPOINT gunicorn -b localhost:8000 -w 1 $APP_MODULE
