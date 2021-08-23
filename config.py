@@ -5,7 +5,7 @@ import os # pylint: disable=unused-import
 
 class Config():
     """Application COnfiguration"""
-    output_text = os.environ.get('output_text') or "<h1 style='color:blue'>Hello There!</h1>"
+    output_text = os.environ.get('output_text') or "<h1 style='color:blue'>Let's discuss Trivy!</h1>"
    
 def myclassvariables():
     """Edit Class Variables"""
