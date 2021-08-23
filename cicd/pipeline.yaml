@@ -183,10 +183,14 @@ spec:
       params:
         - name: script
           value: |
-            kubectl apply -f /workspace/manifest-dir/deploy -n trivy-demo
+            kubectl apply -f /workspace/manifest-dir/deploy/namespace.yaml -n trivy-demo && \
+            kubectl apply -f /workspace/manifest-dir/deploy/service.yaml -n trivy-demo && \
+            kubectl apply -f /workspace/manifest-dir/deploy/deployment.yaml -n trivy-demo
       workspaces:
         - name: manifest-dir
           workspace: pipeline-pvc
+      runAfter:
+        - skopeo-remote-copy    
   finally:
     - name: cleanup-workspace
       taskRef:
