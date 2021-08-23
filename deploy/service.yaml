@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trivy-demo
+  namespace: trivy-demo
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: trivy-demo
+  sessionAffinity: None
+  type: LoadBalancer
+status: {}
