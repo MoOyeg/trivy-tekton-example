@@ -7,13 +7,13 @@ FROM quay.io/mooyeg/python3
 # RUN curl -O https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && python3 get-pip.py
 
 #Make Application Directory
-RUN mkdir ./code && cd ./code
+RUN mkdir ./app && cd ./app
 
 # Copy Files into containers
-COPY ./ ./code
+COPY ./ ./app
 
 #WORKDIR
-WORKDIR /code
+WORKDIR /app
 
 # Install App Dependecies
 RUN pip install -r requirements.txt
@@ -29,4 +29,4 @@ USER 1001
 
 #ENTRY
 #ENTRYPOINT gunicorn -c $APP_CONFIG $APP_MODULE
-ENTRYPOINT cd /code && gunicorn -b localhost:8080 -w 1 $APP_MODULE
+ENTRYPOINT gunicorn -b localhost:8080 -w 1 $APP_MODULE

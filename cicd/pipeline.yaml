@@ -190,7 +190,7 @@ spec:
         - name: manifest-dir
           workspace: pipeline-pvc
       runAfter:
-        - skopeo-remote-copy    
+        - trivy-scan-deployment-code    
   finally:
     - name: cleanup-workspace
       taskRef:
