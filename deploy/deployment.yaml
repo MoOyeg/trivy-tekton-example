@@ -25,10 +25,8 @@ spec:
             - containerPort: 8080
               protocol: TCP
           env:
-            - name: APP_CONFIG
-              value: gunicorn.conf.py
             - name: APP_MODULE
-              value: "trivy_app_sample:app"
+              value: "wsgi:app"
           resources: {}
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File

@@ -29,4 +29,4 @@ USER 1001
 
 #ENTRY
 #ENTRYPOINT gunicorn -c $APP_CONFIG $APP_MODULE
-ENTRYPOINT gunicorn -b localhost:8080 -w 1 $APP_MODULE
+ENTRYPOINT cd /code && gunicorn -b localhost:8080 -w 1 $APP_MODULE
