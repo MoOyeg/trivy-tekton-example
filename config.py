@@ -1,7 +1,9 @@
+'''
+Initialize Config
+'''
 import os # pylint: disable=unused-import
-from dotenv import load_dotenv # pylint: disable=unused-import
 
-class Config(object):
+class Config():
     """Application COnfiguration"""
     output_text = os.environ.get('output_text') or "<h1 style='color:blue'>Hello There!</h1>"
    
