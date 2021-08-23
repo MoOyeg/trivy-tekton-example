@@ -9,7 +9,7 @@ spec:
     - name: url
       value: https://github.com/MoOyeg/trivy-tekton-example.git
     - name: image
-      value: quay.io/mooyeg/trivy-sample
+      value: quay.io/mooyeg/trivy-example
     - name: trivy-enforce
       value: "--exit-code 0"
     - name: temp-image
