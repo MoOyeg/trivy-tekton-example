@@ -2,7 +2,7 @@
 Python File to Run Example
 '''
 
-from app import create_app, db # pylint: disable=unused-import
+from app import create_app # pylint: disable=unused-import
 
 app = create_app()
 
