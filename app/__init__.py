@@ -4,7 +4,7 @@ Initialize Application
 
 import os # pylint: disable=unused-import
 from flask import Flask, request, current_app # pylint: disable=unused-import
-
+from config import Config # pylint: disable=unused-import
 
 def create_app(config_class=Config):
     app = Flask(__name__)

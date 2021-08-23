@@ -1,0 +1,4 @@
+.vscode/settings.json
+auth/htpasswd
+certs/tls.crt
+certs/tls.key
