@@ -40,14 +40,3 @@ Steps:
 
 - Create Pipeline and PipelineRuns, There are different PipelineRuns to show different use cases
   pipelinerun-pass-light.yaml: Shows running Trivy running a scan where the pipeline is always allowed to pass and uses a non-comprehensive(--light) report to speed up running.
-
-  
-- Build Local Registry
-
-  1 `openssl req -x509 -newkey rsa:4096 -days 365 -nodes -sha256 -keyout ./tls.key -out ./tls.crt -subj "/CN=docker-registry"`
-
-  2 `kubectl create secret tls certs-secret --cert=./tls.crt --key=./tls.key -n tekton-pipelines`
-
-  3 `docker run --rm --entrypoint htpasswd registry:2.6.2 -Bbn myuser mypasswd > ./htpasswd`
-
-  4 `kubectl create secret generic auth-secret --from-file=./htpasswd -n tekton-pipelines`
