@@ -11,9 +11,13 @@ spec:
     - name: image
       value: quay.io/mooyeg/trivy-example
     - name: trivy-enforce
-      value: "--exit-code 0" #Pass everything  and don't get comprehensive report     
-    - name: temp-image
-      value: "docker-registry.tekton-pipelines.svc.cluster.local:5000/trivy-example"
+      value: "--exit-code 0" #Pass everything  and don't get comprehensive report
+    - name: trivy-extra-args
+      value: "--light" #Pass everything  and don't get comprehensive report
+    - name: staging-image
+      value: "docker-registry-staging.tekton-pipelines.svc.cluster.local:5000/trivy-example"
+    - name: prod-image
+      value: "docker-registry-prod.tekton-pipelines.svc.cluster.local:5000/trivy-example"
   pipelineRef:
     name: trivy-sample-pipelines
   serviceAccountName: default
@@ -24,10 +28,10 @@ spec:
         claimName: pipeline-pvc
     - name: dockerconfig
       secret:
-        secretName: regcred2
+        secretName: staging-kanikocred
     - name: src-file
       secret:
-        secretName: regcred
+        secretName: staging-maincred
     - name: dest-file
       secret:
-        secretName: mooyeg-pull-secret
+        secretName: prod-maincred

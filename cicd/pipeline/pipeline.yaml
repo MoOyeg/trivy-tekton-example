@@ -29,47 +29,6 @@ spec:
       type: string
       description: Full name of staging image repo.Presently set to use temp docker registry
   tasks:
-    - name: create-staging-docker-secrets
-      taskSpec:
-        steps:
-          - name: Create Staging Secrets
-            image: quay.io/mooyeg/python3
-            script: |
-              mkdir /workspace/source/staging-secrets && cd /workspace/source/staging-secrets && \
-              openssl req -x509 -newkey rsa:4096 -days 365 -nodes -sha256 -keyout ./tls.key -out ./tls.crt -subj "/CN=docker-registry && \ 
-              kubectl create secret tls certs-secret --cert=./tls.crt --key=./tls.key -n tekton-pipelines && \
-              htpasswd -Bbn myuser mypasswd > ./htpasswd && \
-              kubectl create secret generic auth-secret --from-file=./htpasswd -n tekton-pipelines
-        workspaces:
-          - name: source
-      workspaces:
-        - name: source
-          workspace: pipeline-pvc
-    - name: Create-staging-docker-registry
-      taskRef:
-        name: kubernetes-actions
-        kind: Task
-      params:
-        - name: script
-          value: |
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-pvc.yaml -n tekton-pipelines && \
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-registry.yaml -n tekton-pipelines && \
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-svc.yaml  -n tekton-pipelines
-    - name: create-registry-pull-secret
-      taskRef:
-        name: kubernetes-actions
-        kind: Task
-      params:
-        - name: script
-          value: |
-            kubectl create secret docker-registry staging-regcred \
-            --docker-server=docker-registry.tekton-pipelines.svc.cluster.local:5000 \
-            --docker-username=myuser \
-            --docker-password=mypasswd \
-            --docker-email=test@email.com -n tekton-pipelines && \
-            kubectl create secret generic staging-maincred --from-literal="config.json"=$(kubectl get secret regcred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
-      runAfter:
-        - Create-staging-docker-registry
     - name: git-clone
       taskRef:
         name: git-clone
@@ -80,6 +39,102 @@ spec:
       workspaces:
         - name: output
           workspace: pipeline-pvc
+    - name: create-staging-docker-secrets
+      taskSpec:
+        steps:
+          - name: create-staging-secrets
+            image: quay.io/mooyeg/python3
+            script: |
+              mkdir /workspace/source/staging-secrets && cd /workspace/source/staging-secrets && \
+              openssl req -x509 -newkey rsa:4096 -days 365 -nodes -sha256 -keyout ./tls.key -out ./tls.crt -subj "/CN=docker-registry-staging" && \
+              htpasswd -Bbn myuser mypasswd > ./htpasswd
+        workspaces:
+          - name: source
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - git-clone
+    - name: create-staging-docker-registry
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret tls certs-secret-staging --cert=/workspace/manifest-dir/staging-secrets/tls.crt --key=/workspace/manifest-dir/staging-secrets/tls.key -n tekton-pipelines && \
+            kubectl create secret generic auth-secret-staging --from-file=/workspace/manifest-dir/staging-secrets/htpasswd -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-pvc-staging.yaml -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-registry-staging.yaml -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-svc-staging.yaml  -n tekton-pipelines
+      workspaces:
+        - name: manifest-dir
+          workspace: pipeline-pvc
+      runAfter:
+        - create-staging-docker-secrets
+    - name: create-staging-registry-pull-secret
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret docker-registry staging-maincred \
+            --docker-server=docker-registry-staging.tekton-pipelines.svc.cluster.local:5000 \
+            --docker-username=myuser \
+            --docker-password=mypasswd \
+            --docker-email=test@email.com -n tekton-pipelines && \
+            kubectl create secret generic staging-kanikocred --from-literal="config.json"=$(kubectl get secret staging-maincred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
+      runAfter:
+        - create-staging-docker-registry
+    - name: create-prod-docker-secrets
+      taskSpec:
+        steps:
+          - name: create-prod-secrets
+            image: quay.io/mooyeg/python3
+            script: |
+              mkdir /workspace/source/prod-secrets && cd /workspace/source/prod-secrets && \
+              openssl req -x509 -newkey rsa:4096 -days 365 -nodes -sha256 -keyout ./tls.key -out ./tls.crt -subj "/CN=docker-registry-prod" && \
+              htpasswd -Bbn myuser mypasswd > ./htpasswd
+        workspaces:
+          - name: source
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+      runAfter:
+        - git-clone
+    - name: create-prod-docker-registry
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret tls certs-secret-prod --cert=/workspace/manifest-dir/prod-secrets/tls.crt --key=/workspace/manifest-dir/prod-secrets/tls.key -n tekton-pipelines && \
+            kubectl create secret generic auth-secret-prod --from-file=/workspace/manifest-dir/prod-secrets/htpasswd -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-pvc-prod.yaml -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-registry-prod.yaml -n tekton-pipelines && \
+            kubectl apply -f /workspace/manifest-dir/cicd/docker/docker-svc-prod.yaml  -n tekton-pipelines
+      workspaces:
+        - name: manifest-dir
+          workspace: pipeline-pvc
+      runAfter:
+        - create-prod-docker-secrets
+    - name: create-prod-registry-pull-secret
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret docker-registry prod-maincred \
+            --docker-server=docker-registry-prod.tekton-pipelines.svc.cluster.local:5000 \
+            --docker-username=myuser \
+            --docker-password=mypasswd \
+            --docker-email=test@email.com -n tekton-pipelines && \
+            kubectl create secret generic prod-kanikocred --from-literal="config.json"=$(kubectl get secret prod-maincred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
+      runAfter:
+        - create-prod-docker-registry
     - name: lint-code
       taskRef:
         name: pylint
@@ -111,7 +166,7 @@ spec:
         kind: Task
       params:
         - name: IMAGE
-          value: $(params.temp-image)
+          value: $(params.staging-image)
         - name: EXTRA_ARGS
           value:
             - --skip-tls-verify
@@ -123,7 +178,7 @@ spec:
           workspace: dockerconfig
       runAfter:
         - lint-code
-        - temp-registry-secret
+        - create-staging-registry-pull-secret
     - name: skopeo-local-copy
       taskRef:
         name: custom-skopeo
@@ -131,7 +186,7 @@ spec:
       params:
         - name: args
           value: |
-            copy docker://$(params.temp-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson oci:/workspace/source/local
+            copy docker://$(params.staging-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson oci:/workspace/source/local
       workspaces:
         - name: source
           workspace: pipeline-pvc
@@ -160,7 +215,7 @@ spec:
         kind: Task
       params:
         - name: args
-          value: "image $(params.trivy-enforce) --input /workspace/source/local"
+          value: "$(params.trivy-enforce) --input /workspace/source/local"
       workspaces:
         - name: source
           workspace: pipeline-pvc
@@ -173,7 +228,7 @@ spec:
       params:
         - name: args
           value: |
-            copy docker://$(params.temp-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson docker://$(params.image):latest --dest-authfile /workspace/dest-file/.dockerconfigjson
+            copy docker://$(params.staging-image) --src-tls-verify=false --src-authfile /workspace/src-file/.dockerconfigjson docker://$(params.prod-image):latest --dest-tls-verify=false --dest-authfile /workspace/dest-file/.dockerconfigjson
       workspaces:
         - name: source
           workspace: pipeline-pvc
@@ -188,8 +243,10 @@ spec:
         name: trivy-scan
         kind: Task
       params:
+        - name: script
+          value: "trivy config $@"
         - name: args
-          value: "config $(params.trivy-enforce) /workspace/source/deploy"
+          value: "$(params.trivy-enforce) /workspace/source/deploy"
       workspaces:
         - name: source
           workspace: pipeline-pvc
@@ -209,7 +266,7 @@ spec:
         - name: manifest-dir
           workspace: pipeline-pvc
       runAfter:
-        - trivy-scan-deployment-code    
+        - trivy-scan-deployment-code
   finally:
     - name: cleanup-workspace
       taskRef:
@@ -217,6 +274,17 @@ spec:
       params:
         - name: script
           value: |
-            kubectl delete pod/docker-registry-pod -n tekton-pipelines && \
-            kubectl delete secret/regcred -n tekton-pipelines && \
-            kubectl delete secret/regcred2 -n tekton-pipelines
+            kubectl delete pod/docker-registry-prod -n tekton-pipelines; \
+            kubectl delete pod/docker-registry-staging -n tekton-pipelines; \
+            kubectl delete secret/prod-maincred -n tekton-pipelines; \
+            kubectl delete secret/prod-kanikocred -n tekton-pipelines; \
+            kubectl delete secret/staging-maincred -n tekton-pipelines; \
+            kubectl delete secret/staging-kanikocred -n tekton-pipelines; \
+            kubectl delete secret/auth-secret-prod -n tekton-pipelines; \
+            kubectl delete secret/auth-secret-staging -n tekton-pipelines; \
+            kubectl delete secret/certs-secret-prod -n tekton-pipelines; \
+            kubectl delete secret/certs-secret-staging -n tekton-pipelines; \
+            kubectl delete pvc/docker-pvc-prod -n tekton-pipelines; \
+            kubectl delete pvc/docker-pvc-staging -n tekton-pipelines; \
+            kubectl delete svc/docker-registry-staging -n tekton-pipelines; \
+            kubectl delete svc/docker-registry-prod -n tekton-pipelines

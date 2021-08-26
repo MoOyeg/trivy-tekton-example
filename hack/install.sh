@@ -49,5 +49,5 @@ echo -e "Clone Repo and Build Tasks and Pipeline \n"
 git clone ${CODE_REPO} ${TEKTON_DIRECTORY} && \
 kubectl apply -f ${TEKTON_DIRECTORY}/cicd/tasks -n ${TEKTON_NAMESPACE} && \
 kubectl create namespace ${DEPLOYMENT_NAMESPACE} && \
-kubectl create clusterrolebinding pipelines-default-admin --clusterrole=cluster-admin --serviceaccout=tekton-pipelines:default -n ${DEPLOYMENT_NAMESPACE}
+kubectl create clusterrolebinding pipelines-default-admin --clusterrole=cluster-admin --serviceaccount=tekton-pipelines:default -n ${DEPLOYMENT_NAMESPACE}
 
