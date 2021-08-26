@@ -20,7 +20,7 @@ spec:
     - name: script
       description: The Trivy script to run
       type: string
-      default: "trivy $@"
+      default: "trivy image $@"
   steps:
     - image: "docker.io/aquasec/trivy:$(inputs.params.tag)"
       name: trivy-scan

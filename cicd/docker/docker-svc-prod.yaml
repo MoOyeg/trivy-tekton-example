@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: docker-registry
+  name: docker-registry-prod
 spec:
   selector:
-    app: registry
+    app: registry-prod
   ports:
     - port: 5000
       targetPort: 5000

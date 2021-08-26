@@ -13,19 +13,63 @@ spec:
     - name: dest-file
   description: Demo Pipeline for Trivy
   params:
-    - name: image
+    - name: prod-image
       type: string
-      description: Full name of output image to scan (example -- registry.redhat.io/ubi8)
+      description: Full name of prod image repo.Presently set to use temp docker registry
     - name: url
       type: string
       description: Git Repo to Clone
     - name: trivy-enforce
       type: string
       description: Should Trivy Enforce Policy if yes set to --exit-code 0
-    - name: temp-image
+    - name: trivy-extra-args
       type: string
-      description: Temporary image storage repo
+      description: Extra Trivy args to Used for Trivy CLI
+    - name: staging-image
+      type: string
+      description: Full name of staging image repo.Presently set to use temp docker registry
   tasks:
+    - name: create-staging-docker-secrets
+      taskSpec:
+        steps:
+          - name: Create Staging Secrets
+            image: quay.io/mooyeg/python3
+            script: |
+              mkdir /workspace/source/staging-secrets && cd /workspace/source/staging-secrets && \
+              openssl req -x509 -newkey rsa:4096 -days 365 -nodes -sha256 -keyout ./tls.key -out ./tls.crt -subj "/CN=docker-registry && \ 
+              kubectl create secret tls certs-secret --cert=./tls.crt --key=./tls.key -n tekton-pipelines && \
+              htpasswd -Bbn myuser mypasswd > ./htpasswd && \
+              kubectl create secret generic auth-secret --from-file=./htpasswd -n tekton-pipelines
+        workspaces:
+          - name: source
+      workspaces:
+        - name: source
+          workspace: pipeline-pvc
+    - name: Create-staging-docker-registry
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-pvc.yaml -n tekton-pipelines && \
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-registry.yaml -n tekton-pipelines && \
+            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-svc.yaml  -n tekton-pipelines
+    - name: create-registry-pull-secret
+      taskRef:
+        name: kubernetes-actions
+        kind: Task
+      params:
+        - name: script
+          value: |
+            kubectl create secret docker-registry staging-regcred \
+            --docker-server=docker-registry.tekton-pipelines.svc.cluster.local:5000 \
+            --docker-username=myuser \
+            --docker-password=mypasswd \
+            --docker-email=test@email.com -n tekton-pipelines && \
+            kubectl create secret generic staging-maincred --from-literal="config.json"=$(kubectl get secret regcred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
+      runAfter:
+        - Create-staging-docker-registry
     - name: git-clone
       taskRef:
         name: git-clone
@@ -48,31 +92,6 @@ spec:
           workspace: pipeline-pvc
       runAfter:
         - git-clone
-    - name: temp-docker-registry
-      taskRef:
-        name: kubernetes-actions
-        kind: Task
-      params:
-        - name: script
-          value: |
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-pvc.yaml -n tekton-pipelines && \
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-registry.yaml -n tekton-pipelines && \
-            kubectl apply -f https://raw.githubusercontent.com/MoOyeg/trivy-tekton-example/main/cicd/docker-local-svc.yaml  -n tekton-pipelines
-    - name: temp-registry-secret
-      taskRef:
-        name: kubernetes-actions
-        kind: Task
-      params:
-        - name: script
-          value: |
-            kubectl create secret docker-registry regcred \
-            --docker-server=docker-registry.tekton-pipelines.svc.cluster.local:5000 \
-            --docker-username=myuser \
-            --docker-password=mypasswd \
-            --docker-email=test@email.com -n tekton-pipelines && \
-            kubectl create secret generic regcred2 --from-literal="config.json"=$(kubectl get secret regcred -n tekton-pipelines -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d) -n tekton-pipelines
-      runAfter:
-        - temp-docker-registry
     - name: mkdir-for-local-oci
       taskSpec:
         steps:

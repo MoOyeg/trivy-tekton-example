@@ -1,0 +1,33 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: trivy-sample-pipelines-pass-light
+  labels:
+    tekton.dev/pipeline: trivy-sample-pipelines-pass-light
+spec:
+  params:
+    - name: url
+      value: https://github.com/MoOyeg/trivy-tekton-example.git
+    - name: image
+      value: quay.io/mooyeg/trivy-example
+    - name: trivy-enforce
+      value: "--exit-code 0" #Pass everything  and don't get comprehensive report     
+    - name: temp-image
+      value: "docker-registry.tekton-pipelines.svc.cluster.local:5000/trivy-example"
+  pipelineRef:
+    name: trivy-sample-pipelines
+  serviceAccountName: default
+  timeout: 1h0m0s
+  workspaces:
+    - name: pipeline-pvc
+      persistentVolumeClaim:
+        claimName: pipeline-pvc
+    - name: dockerconfig
+      secret:
+        secretName: regcred2
+    - name: src-file
+      secret:
+        secretName: regcred
+    - name: dest-file
+      secret:
+        secretName: mooyeg-pull-secret

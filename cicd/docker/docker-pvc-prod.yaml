@@ -1,7 +1,7 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: docker-repo-pvc
+  name: docker-pvc-prod
 spec:
   accessModes:
     - ReadWriteOnce

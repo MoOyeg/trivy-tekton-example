@@ -3,7 +3,7 @@ kind: Task
 metadata:
   name: custom-skopeo
 spec:
-  description: This task can be used to run unit tests for python.
+  description: Task used to run Skopeo, Changes from the upstream tekton skopeo task to allow multiple workspaces.
   params:
     - name: script
       description: The Trivy script to run
