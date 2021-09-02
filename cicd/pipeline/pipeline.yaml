@@ -19,15 +19,15 @@ spec:
     - name: url
       type: string
       description: Git Repo to Clone
-    - name: trivy-enforce
-      type: string
-      description: Should Trivy Enforce Policy if yes set to --exit-code 0
-    - name: trivy-extra-args
-      type: string
-      description: Extra Trivy args to Used for Trivy CLI
     - name: staging-image
       type: string
       description: Full name of staging image repo.Presently set to use temp docker registry
+    - name: trivy_args_image_local
+      type: array
+      description: The Arguments to be passed to Trivy command for local image.
+    - name: trivy_args_config
+      type: array
+      description: The Arguments to be passed to Trivy command for config image.
   tasks:
     - name: git-clone
       taskRef:
@@ -179,6 +179,7 @@ spec:
       runAfter:
         - lint-code
         - create-staging-registry-pull-secret
+      retries: 3
     - name: skopeo-local-copy
       taskRef:
         name: custom-skopeo
@@ -196,28 +197,17 @@ spec:
           workspace: dest-file
       runAfter:
         - kaniko-build
-    # - name: check-local
-    #   taskSpec:
-    #     steps:
-    #       - name: mkdir
-    #         image: zshusers/zsh:4.3.15
-    #         script: ls /workspace/source
-    #     workspaces:
-    #       - name: source
-    #   workspaces:
-    #     - name: source
-    #       workspace: pipeline-pvc
-    #   runAfter:
-    #     - skopeo-local-copy
     - name: trivy-scan-local-image
       taskRef:
-        name: trivy-scan
+        name: trivy-scanner
         kind: Task
       params:
-        - name: args
-          value: "$(params.trivy-enforce) --input /workspace/source/local"
+        - name: ARGS
+          value: ["$(params.trivy_args_image_local[*])"]
+        - name: IMAGE_PATH
+          value: " /workspace/manifest-dir/local"
       workspaces:
-        - name: source
+        - name: manifest-dir
           workspace: pipeline-pvc
       runAfter:
         - skopeo-local-copy
@@ -240,15 +230,15 @@ spec:
         - trivy-scan-local-image
     - name: trivy-scan-deployment-code
       taskRef:
-        name: trivy-scan
+        name: trivy-scanner
         kind: Task
       params:
-        - name: script
-          value: "trivy config $@"
-        - name: args
-          value: "$(params.trivy-enforce) /workspace/source/deploy"
+        - name: ARGS
+          value: ["$(params.trivy_args_config[*])"]
+        - name: IMAGE_PATH
+          value: "/workspace/manifest-dir/deploy"
       workspaces:
-        - name: source
+        - name: manifest-dir
           workspace: pipeline-pvc
       runAfter:
         - skopeo-remote-copy

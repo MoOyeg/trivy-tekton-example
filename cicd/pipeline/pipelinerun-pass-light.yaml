@@ -10,14 +10,22 @@ spec:
       value: https://github.com/MoOyeg/trivy-tekton-example.git
     - name: image
       value: quay.io/mooyeg/trivy-example
-    - name: trivy-enforce
-      value: "--exit-code 0" #Pass everything  and don't get comprehensive report
-    - name: trivy-extra-args
-      value: "--light" #Pass everything  and don't get comprehensive report
     - name: staging-image
       value: "docker-registry-staging.tekton-pipelines.svc.cluster.local:5000/trivy-example"
     - name: prod-image
       value: "docker-registry-prod.tekton-pipelines.svc.cluster.local:5000/trivy-example"
+    - name: trivy_args_image_local
+      value:
+        - "image"
+        - "--light"
+        - "--exit-code"
+        - "0"
+        - "--input"
+    - name: trivy_args_config
+      value:
+        - "config"
+        - "--exit-code"
+        - "0"
   pipelineRef:
     name: trivy-sample-pipelines
   serviceAccountName: default
